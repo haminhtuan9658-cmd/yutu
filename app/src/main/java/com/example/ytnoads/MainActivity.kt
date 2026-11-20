@@ -69,6 +69,8 @@ class MainActivity : Activity() {
     private var coPlayer = false
     private var dangMini = false
     private var dangDo = false
+    private var barTieuDeCu = ""
+    private var barPhatCu: Boolean? = null
 
     private val MP = ViewGroup.LayoutParams.MATCH_PARENT
 
@@ -93,7 +95,7 @@ class MainActivity : Activity() {
         if (m.content !== muc) m.content = muc;
       }
       dat();
-      if (!window.__ytKhung) { window.__ytKhung = 1; setInterval(dat, 700); }
+      if (!window.__ytKhung) { window.__ytKhung = 1; setInterval(dat, 2000); }
     })();
     """.trimIndent()
 
@@ -129,27 +131,28 @@ class MainActivity : Activity() {
       document.head.appendChild(css);
       var tuaQc = false;
       setInterval(function(){
-        var v = document.querySelector('video');
         var p = document.querySelector('.html5-video-player');
-        var qc = p && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'));
+        if (!p) return;
+        var v = document.querySelector('video');
+        var qc = p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting');
         if (qc) {
           tuaQc = true;
           if (v && isFinite(v.duration) && v.duration > 0) {
             v.muted = true; v.playbackRate = 16; v.currentTime = v.duration;
           }
+          var b = document.querySelector(
+            '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
+            '.ytp-ad-skip-button-container button,.ytp-ad-overlay-close-button');
+          if (b) b.click();
         } else if (tuaQc) {
           tuaQc = false;
           if (v) { v.playbackRate = 1; v.muted = false; if (v.paused && !v.ended) v.play(); }
         }
-        var b = document.querySelector(
-          '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
-          '.ytp-ad-skip-button-container button,.ytp-ad-overlay-close-button');
-        if (b) b.click();
-      }, 250);
+      }, 400);
     })();
     """.trimIndent()
 
-    // Tự phát video có tiếng khi mở video
+    // Tự phát video có tiếng khi mở video (không giới hạn chất lượng)
     private val jsTuPhat = """
     (function(){
       if (window.__ytTuPhat) return; window.__ytTuPhat = 1;
@@ -168,7 +171,7 @@ class MainActivity : Activity() {
         try { v.volume = 1; } catch(e) {}
         if (v.paused && !v.ended) { var r = v.play(); if (r && r.catch) r.catch(function(){}); }
         if (!v.paused && !v.muted) daLam = khoa;
-      }, 400);
+      }, 800);
     })();
     """.trimIndent()
 
@@ -223,7 +226,7 @@ class MainActivity : Activity() {
         was = on;
         if (on) boVungDen();
       }
-      setInterval(chinh, 600);
+      setInterval(chinh, 1200);
       chinh();
     })();
     """.trimIndent()
@@ -270,14 +273,26 @@ class MainActivity : Activity() {
     })();
     """.trimIndent()
 
+    // Báo thông tin bài đang phát về ứng dụng, chỉ khi có thay đổi; tự gỡ khi hình đứng
     private val jsBao = """
     (function(){
       if (window.__ytBao) return; window.__ytBao = 1;
+      var lastT = '', lastP = null, lastSend = 0, lastPos = -1, stuck = 0;
       setInterval(function(){
         var v = document.querySelector('video');
         if (!v || !v.currentSrc) return;
+        var phat = !v.paused && !v.ended;
+        if (phat) {
+          var pos0 = v.currentTime || 0;
+          if (Math.abs(pos0 - lastPos) < 0.05) { stuck++; } else { stuck = 0; }
+          lastPos = pos0;
+          if (stuck === 6) { try { v.currentTime = pos0 + 0.1; } catch(e) {} }
+        } else { stuck = 0; lastPos = -1; }
         var md = (navigator.mediaSession && navigator.mediaSession.metadata) ? navigator.mediaSession.metadata : null;
         var title = (md && md.title) ? md.title : document.title.replace(' - YouTube', '');
+        var now = Date.now();
+        if (title === lastT && phat === lastP && now - lastSend < 5000) return;
+        lastT = title; lastP = phat; lastSend = now;
         var artist = (md && md.artist) ? md.artist : '';
         var art = '';
         if (md && md.artwork && md.artwork.length) art = md.artwork[md.artwork.length - 1].src;
@@ -287,7 +302,7 @@ class MainActivity : Activity() {
         }
         var dur = isFinite(v.duration) ? Math.floor(v.duration * 1000) : 0;
         var pos = Math.floor((v.currentTime || 0) * 1000);
-        Android.capNhat(title, artist, art, !v.paused && !v.ended, pos, dur);
+        Android.capNhat(title, artist, art, phat, pos, dur);
       }, 1000);
     })();
     """.trimIndent()
@@ -443,6 +458,7 @@ class MainActivity : Activity() {
 
     fun dong() {
         pl.loadUrl("about:blank")
+        pl.clearHistory()
         coPlayer = false
         dangMini = false
         dangDo = false
@@ -460,10 +476,16 @@ class MainActivity : Activity() {
     }
 
     fun capNhatBar(tieuDe: String, phat: Boolean) {
-        tieuDeBar.text = tieuDe
-        nutPhat.setImageResource(
-            if (phat) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
-        )
+        if (tieuDe != barTieuDeCu) {
+            barTieuDeCu = tieuDe
+            tieuDeBar.text = tieuDe
+        }
+        if (phat != barPhatCu) {
+            barPhatCu = phat
+            nutPhat.setImageResource(
+                if (phat) android.R.drawable.ic_media_pause else android.R.drawable.ic_media_play
+            )
+        }
     }
 
     @SuppressLint("SetJavaScriptEnabled", "AddJavascriptInterface")
@@ -479,6 +501,10 @@ class MainActivity : Activity() {
             builtInZoomControls = false
             displayZoomControls = false
             textZoom = 100
+            cacheMode = WebSettings.LOAD_DEFAULT
+        }
+        if (Build.VERSION.SDK_INT >= 26) {
+            w.settings.safeBrowsingEnabled = false
         }
         w.setBackgroundColor(0xFF0F0F0F.toInt())
         w.overScrollMode = View.OVER_SCROLL_NEVER
