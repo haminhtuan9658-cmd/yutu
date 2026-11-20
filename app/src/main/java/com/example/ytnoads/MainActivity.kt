@@ -113,31 +113,66 @@ class MainActivity : Activity() {
     })();
     """.trimIndent()
 
+    // Ẩn banner quảng cáo, bỏ qua quảng cáo trong video
     private val jsChan = """
     (function(){
       if (window.__ytNoAds) return; window.__ytNoAds = 1;
       var css = document.createElement('style');
       css.textContent = 'ytm-promoted-sparkles-web-renderer,ytm-promoted-video-renderer,' +
         'ytm-companion-slot,ytm-statement-banner-renderer,ad-slot-renderer,' +
-        'ytm-display-ad-renderer,.ad-container,.ytp-ad-overlay-container,' +
+        'ytm-display-ad-renderer,.ad-container,.ytp-ad-overlay-container,.ytp-ad-image-overlay,' +
+        'ytm-promoted-sparkles-text-search-renderer,ytm-search-pyv-renderer,' +
         'ytm-chip-cloud-renderer,ytm-feed-filter-chip-bar-renderer,ytm-chip-cloud-chip-renderer,.chip-cloud,' +
         'ytm-mini-guide-renderer,ytd-mini-guide-renderer,#mini-guide-background,' +
         'ytm-brand-video-singleton-renderer{display:none!important}' +
         'html,body{overflow-x:hidden!important;max-width:100vw!important}';
       document.head.appendChild(css);
+      var tuaQc = false;
       setInterval(function(){
+        var v = document.querySelector('video');
         var p = document.querySelector('.html5-video-player');
-        if (p && p.classList.contains('ad-showing')) {
-          var v = document.querySelector('video');
-          if (v && isFinite(v.duration)) { v.muted = true; v.playbackRate = 16; v.currentTime = v.duration; }
+        var qc = p && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'));
+        if (qc) {
+          tuaQc = true;
+          if (v && isFinite(v.duration) && v.duration > 0) {
+            v.muted = true; v.playbackRate = 16; v.currentTime = v.duration;
+          }
+        } else if (tuaQc) {
+          tuaQc = false;
+          if (v) { v.playbackRate = 1; v.muted = false; if (v.paused && !v.ended) v.play(); }
         }
-        var b = document.querySelector('.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button');
+        var b = document.querySelector(
+          '.ytp-ad-skip-button,.ytp-ad-skip-button-modern,.ytp-skip-ad-button,' +
+          '.ytp-ad-skip-button-container button,.ytp-ad-overlay-close-button');
         if (b) b.click();
-      }, 300);
+      }, 250);
     })();
     """.trimIndent()
 
-    // Khung phát video rộng hết chiều ngang, tỉ lệ 16:9
+    // Tự phát video có tiếng khi mở video
+    private val jsTuPhat = """
+    (function(){
+      if (window.__ytTuPhat) return; window.__ytTuPhat = 1;
+      var daLam = '';
+      setInterval(function(){
+        if (location.pathname.indexOf('/watch') !== 0) { daLam = ''; return; }
+        var khoa = location.search;
+        if (daLam === khoa) return;
+        var v = document.querySelector('video');
+        if (!v || !v.currentSrc) return;
+        var p = document.querySelector('.html5-video-player');
+        if (p && (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting'))) return;
+        var un = document.querySelector('.ytp-unmute,.ytp-unmute-inner,.ytp-unmute-icon');
+        if (un) un.click();
+        v.muted = false;
+        try { v.volume = 1; } catch(e) {}
+        if (v.paused && !v.ended) { var r = v.play(); if (r && r.catch) r.catch(function(){}); }
+        if (!v.paused && !v.muted) daLam = khoa;
+      }, 400);
+    })();
+    """.trimIndent()
+
+    // Khung phát video rộng hết chiều ngang, tỉ lệ 16:9, bỏ vùng đen bên dưới
     private val jsRong = """
     (function(){
       if (window.__ytRong) return; window.__ytRong = 1;
@@ -149,6 +184,35 @@ class MainActivity : Activity() {
         'html[data-ytw] video.html5-main-video{width:100vw!important;height:56.25vw!important;left:0!important;top:0!important}';
       document.head.appendChild(css);
       var was = false;
+      var mucTieu = [
+        'ytm-slim-video-metadata-section-renderer',
+        'ytm-slim-video-information-renderer',
+        '.slim-video-metadata-header',
+        'ytm-slim-owner-renderer',
+        'ytm-single-column-watch-next-results-renderer',
+        'ytm-item-section-renderer'
+      ];
+      function boVungDen(){
+        var v = document.querySelector('video');
+        if (!v) return;
+        var vr = v.getBoundingClientRect();
+        if (vr.height < 50) return;
+        for (var i = 0; i < mucTieu.length; i++) {
+          var t = document.querySelector(mucTieu[i]);
+          if (!t) continue;
+          var tr = t.getBoundingClientRect();
+          if (tr.height <= 0) continue;
+          var g = tr.top - vr.bottom;
+          var cur = parseFloat(t.getAttribute('data-ytm') || '0');
+          if (g > 6 || (g < -6 && cur < 0)) {
+            cur -= g;
+            if (cur > 0) cur = 0;
+            t.setAttribute('data-ytm', String(cur));
+            t.style.setProperty('margin-top', cur + 'px', 'important');
+          }
+          break;
+        }
+      }
       function chinh(){
         var w = location.pathname.indexOf('/watch') === 0;
         var fsc = document.querySelector('.html5-video-player.ytp-fullscreen') || document.fullscreenElement;
@@ -157,8 +221,9 @@ class MainActivity : Activity() {
         else document.documentElement.removeAttribute('data-ytw');
         if (on && !was) window.dispatchEvent(new Event('resize'));
         was = on;
+        if (on) boVungDen();
       }
-      setInterval(chinh, 800);
+      setInterval(chinh, 600);
       chinh();
     })();
     """.trimIndent()
@@ -264,6 +329,7 @@ class MainActivity : Activity() {
             view.evaluateJavascript(jsChan, null)
             if (laPlayer) {
                 view.evaluateJavascript(jsRong, null)
+                view.evaluateJavascript(jsTuPhat, null)
                 view.evaluateJavascript(jsBao, null)
                 view.evaluateJavascript(jsLogo, null)
             } else {
