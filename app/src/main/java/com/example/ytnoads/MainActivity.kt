@@ -69,7 +69,8 @@ class MainActivity : Activity() {
       css.textContent = 'ytm-promoted-sparkles-web-renderer,ytm-promoted-video-renderer,' +
         'ytm-companion-slot,ytm-statement-banner-renderer,ad-slot-renderer,' +
         'ytm-display-ad-renderer,.ad-container,.ytp-ad-overlay-container,' +
-        'ytm-brand-video-singleton-renderer{display:none!important}';
+        'ytm-brand-video-singleton-renderer{display:none!important}' +
+        'html,body{overflow-x:hidden!important;max-width:100vw!important}';
       document.head.appendChild(css);
       setInterval(function(){
         var p = document.querySelector('.html5-video-player');
@@ -138,9 +139,27 @@ class MainActivity : Activity() {
             domStorageEnabled = true
             mediaPlaybackRequiresUserGesture = false
             userAgentString = userAgentString.replace("; wv", "")
+            useWideViewPort = true
+            loadWithOverviewMode = false
+            setSupportZoom(false)
+            builtInZoomControls = false
+            displayZoomControls = false
+            textZoom = 100
         }
-        CookieManager.getInstance().setAcceptCookie(true)
-        CookieManager.getInstance().setAcceptThirdPartyCookies(web, true)
+        web.setBackgroundColor(0xFF0F0F0F.toInt())
+        web.overScrollMode = View.OVER_SCROLL_NEVER
+        web.isHorizontalScrollBarEnabled = false
+
+        val ck = CookieManager.getInstance()
+        ck.setAcceptCookie(true)
+        ck.setAcceptThirdPartyCookies(web, true)
+        val cu = ck.getCookie("https://m.youtube.com") ?: ""
+        if (!cu.contains("f6=")) {
+            ck.setCookie(
+                "https://m.youtube.com",
+                "PREF=f6=400&hl=vi; Domain=.youtube.com; Path=/; Max-Age=31536000"
+            )
+        }
         web.addJavascriptInterface(Cau(), "Android")
 
         web.webViewClient = object : WebViewClient() {
