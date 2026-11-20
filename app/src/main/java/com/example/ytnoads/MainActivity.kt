@@ -46,6 +46,24 @@ class MainActivity : Activity() {
         "adservice.google", "/pagead/", "/api/stats/ads", "/ptracking", "get_midroll_info"
     )
 
+    // Ép trang dùng khung điện thoại (rộng 412) để không hiện cột menu bên trái
+    private val jsKhung = """
+    (function(){
+      var muc = 'width=412, user-scalable=no';
+      function dat(){
+        var m = document.querySelector('meta[name=viewport]');
+        if (!m) {
+          m = document.createElement('meta');
+          m.name = 'viewport';
+          (document.head || document.documentElement).appendChild(m);
+        }
+        if (m.content !== muc) m.content = muc;
+      }
+      dat();
+      if (!window.__ytKhung) { window.__ytKhung = 1; setInterval(dat, 700); }
+    })();
+    """.trimIndent()
+
     private val jsNen = """
     (function(){
       if (window.__ytNen) return; window.__ytNen = 1;
@@ -70,6 +88,7 @@ class MainActivity : Activity() {
         'ytm-companion-slot,ytm-statement-banner-renderer,ad-slot-renderer,' +
         'ytm-display-ad-renderer,.ad-container,.ytp-ad-overlay-container,' +
         'ytm-chip-cloud-renderer,ytm-feed-filter-chip-bar-renderer,ytm-chip-cloud-chip-renderer,.chip-cloud,' +
+        'ytm-mini-guide-renderer,ytd-mini-guide-renderer,#mini-guide-background,' +
         'ytm-brand-video-singleton-renderer{display:none!important}' +
         'html,body{overflow-x:hidden!important;max-width:100vw!important}';
       document.head.appendChild(css);
@@ -172,9 +191,11 @@ class MainActivity : Activity() {
                 return null
             }
             override fun onPageStarted(view: WebView, url: String, favicon: android.graphics.Bitmap?) {
+                view.evaluateJavascript(jsKhung, null)
                 view.evaluateJavascript(jsNen, null)
             }
             override fun onPageFinished(view: WebView, url: String) {
+                view.evaluateJavascript(jsKhung, null)
                 view.evaluateJavascript(jsNen, null)
                 view.evaluateJavascript(jsChan, null)
                 view.evaluateJavascript(jsBao, null)
