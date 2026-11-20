@@ -69,6 +69,7 @@ class MainActivity : Activity() {
       css.textContent = 'ytm-promoted-sparkles-web-renderer,ytm-promoted-video-renderer,' +
         'ytm-companion-slot,ytm-statement-banner-renderer,ad-slot-renderer,' +
         'ytm-display-ad-renderer,.ad-container,.ytp-ad-overlay-container,' +
+        'ytm-chip-cloud-renderer,ytm-feed-filter-chip-bar-renderer,ytm-chip-cloud-chip-renderer,.chip-cloud,' +
         'ytm-brand-video-singleton-renderer{display:none!important}' +
         'html,body{overflow-x:hidden!important;max-width:100vw!important}';
       document.head.appendChild(css);
