@@ -5,6 +5,7 @@ import android.annotation.SuppressLint
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
+import android.content.pm.ActivityInfo
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -71,6 +72,9 @@ class MainActivity : Activity() {
     private var dangDo = false
     private var barTieuDeCu = ""
     private var barPhatCu: Boolean? = null
+
+    // Hướng màn hình trước khi vào toàn màn hình (để trả lại khi thoát)
+    private var huongCu = ActivityInfo.SCREEN_ORIENTATION_UNSPECIFIED
 
     private val MP = ViewGroup.LayoutParams.MATCH_PARENT
 
@@ -309,7 +313,13 @@ class MainActivity : Activity() {
 
     private val chrome = object : WebChromeClient() {
         override fun onShowCustomView(view: View, cb: CustomViewCallback) {
+            // Chỉ nhớ hướng cũ ở lần vào toàn màn hình đầu tiên
+            if (callbackToan == null) {
+                huongCu = requestedOrientation
+            }
             callbackToan = cb
+            // Xoay theo cảm biến: máy đứng thì dọc, máy ngang thì ngang
+            requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
             window.addFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
             fs.removeAllViews()
             fs.addView(view, FrameLayout.LayoutParams(MP, MP))
@@ -317,6 +327,8 @@ class MainActivity : Activity() {
         }
         override fun onHideCustomView() {
             window.clearFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN)
+            // Trả hướng màn hình về như trước khi vào toàn màn hình
+            requestedOrientation = huongCu
             fs.removeAllViews()
             fs.visibility = View.GONE
             callbackToan?.onCustomViewHidden()
