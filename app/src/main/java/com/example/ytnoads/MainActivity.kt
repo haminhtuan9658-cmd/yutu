@@ -376,6 +376,106 @@ class MainActivity : Activity() {
     })();
     """.trimIndent()
 
+    // Tự chọn độ phân giải tốt nhất theo mạng; bạn chọn tay trong cài đặt thì app dừng can thiệp video đó
+    private val jsPhanGiai = """
+    (function(){
+      if (window.__ytPG) return; window.__ytPG = 1;
+      var DS = ['hd2160','hd1440','hd1080','hd720','large','medium','small','tiny'];
+      var CAN = {hd2160:16, hd1440:8, hd1080:4, hd720:2.2, large:1.1, medium:0.6, small:0.3, tiny:0.15};
+      var TRAN = 'hd1080';
+      var vid = '', muc = -1, lv = [], thuCong = false, toiDat = 0, chamMenu = 0;
+      var lastStall = 0, lastDoi = 0, dangCho = 0, daGan = false, att = false;
+      function pl(){ return document.querySelector('.html5-video-player') || document.getElementById('movie_player'); }
+      function mang(){
+        var c = navigator.connection || navigator.webkitConnection || navigator.mozConnection;
+        if (c && c.downlink > 0) return c.downlink * 0.6;
+        if (c && c.effectiveType) {
+          var m = {'slow-2g': 0.1, '2g': 0.2, '3g': 0.8, '4g': 5};
+          if (m[c.effectiveType]) return m[c.effectiveType];
+        }
+        return 2.5;
+      }
+      function layMuc(){
+        var d = mang();
+        for (var i = 0; i < lv.length; i++) { if (CAN[lv[i]] <= d) return i; }
+        return lv.length - 1;
+      }
+      function ap(){
+        var p = pl();
+        if (!p || muc < 0) return;
+        var q = lv[muc];
+        toiDat = Date.now();
+        try { if (p.setPlaybackQualityRange) p.setPlaybackQualityRange(q, q); } catch(e) {}
+        try { if (p.setPlaybackQuality) p.setPlaybackQuality(q); } catch(e) {}
+        lastDoi = Date.now();
+      }
+      function khoiTao(p){
+        var a = p.getAvailableQualityLevels ? p.getAvailableQualityLevels() : [];
+        var cap = DS.indexOf(TRAN);
+        lv = DS.filter(function(x){ return a.indexOf(x) >= 0 && DS.indexOf(x) >= cap; });
+        if (!lv.length) return false;
+        muc = layMuc();
+        ap();
+        return true;
+      }
+      function dem(v){
+        var b = v.buffered, t = v.currentTime || 0, ahead = 0;
+        for (var i = 0; i < b.length; i++) {
+          if (b.start(i) <= t + 0.1 && b.end(i) >= t) ahead = b.end(i) - t;
+        }
+        return ahead;
+      }
+      document.addEventListener('touchstart', function(e){
+        var t = e.target;
+        if (t && t.closest && t.closest('[class*="ettings"],[class*="ytp-panel"],[class*="ytp-popup"],[class*="uality"]')) chamMenu = Date.now();
+      }, true);
+      var c = navigator.connection;
+      if (c && c.addEventListener) {
+        c.addEventListener('change', function(){
+          if (thuCong || muc < 0) return;
+          var n = layMuc();
+          if (n > muc) { muc = n; ap(); }
+        });
+      }
+      setInterval(function(){
+        var p = pl(), v = document.querySelector('video');
+        if (!p || !v || !p.getAvailableQualityLevels) return;
+        if (!att && p.addEventListener) {
+          att = true;
+          try {
+            p.addEventListener('onPlaybackQualityChange', function(){
+              var n = Date.now();
+              if (n - toiDat > 3000 && n - chamMenu < 5000) thuCong = true;
+            });
+          } catch(e) {}
+        }
+        var m = location.search.match(/[?&]v=([^&]+)/);
+        var id = m ? m[1] : '';
+        if (!id) return;
+        if (id !== vid) { vid = id; thuCong = false; daGan = false; muc = -1; lastStall = 0; dangCho = 0; }
+        if (thuCong) return;
+        if (p.classList.contains('ad-showing') || p.classList.contains('ad-interrupting')) return;
+        if (!daGan) {
+          if (v.currentSrc && v.readyState >= 2) daGan = khoiTao(p);
+          return;
+        }
+        var now = Date.now();
+        if (!v.paused && !v.seeking && v.readyState < 3) {
+          if (!dangCho) dangCho = now;
+          else if (now - dangCho > 1500) {
+            dangCho = now;
+            lastStall = now;
+            if (muc < lv.length - 1) { muc++; ap(); }
+          }
+        } else { dangCho = 0; }
+        if (muc > 0 && now - lastStall > 40000 && now - lastDoi > 30000 && dem(v) >= 20 && CAN[lv[muc - 1]] <= mang()) {
+          muc--;
+          ap();
+        }
+      }, 1000);
+    })();
+    """.trimIndent()
+
     private val chrome = object : WebChromeClient() {
         override fun onShowCustomView(view: View, cb: CustomViewCallback) {
             // Chỉ nhớ hướng cũ ở lần vào toàn màn hình đầu tiên
@@ -425,6 +525,7 @@ class MainActivity : Activity() {
                 view.evaluateJavascript(jsBao, null)
                 view.evaluateJavascript(jsLogo, null)
                 view.evaluateJavascript(jsKeo, null)
+                view.evaluateJavascript(jsPhanGiai, null)
             } else {
                 view.evaluateJavascript(jsLink, null)
                 keo.isRefreshing = false
