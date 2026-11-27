@@ -311,45 +311,59 @@ class MainActivity : Activity() {
     })();
     """.trimIndent()
 
-    // Nhấn và kéo trên thanh thời gian: phát hình và tiếng ngay tại điểm đang kéo
+    // Nhấn hoặc kéo trên thanh thời gian: phát hình và tiếng ngay tại điểm đó
     private val jsKeo = """
     (function(){
       if (window.__ytKeo) return; window.__ytKeo = 1;
-      var keo = false, lastSeek = 0;
+      var keo = false, lastSeek = 0, lastX = 0;
       var chon = '.ytp-progress-bar-container,.ytp-progress-bar,.ytp-scrubber-container,' +
         '.ytp-scrubber-button,.ytp-play-progress,.ytp-load-progress,.ytp-hover-progress,[role=slider]';
       function phat(v){
         if (v && v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
       }
       function thanh(){
-        return document.querySelector('.ytp-progress-bar') || document.querySelector('.ytp-progress-bar-container');
+        var ds = ['.ytp-progress-bar', '.ytp-progress-bar-container'];
+        for (var i = 0; i < ds.length; i++) {
+          var e = document.querySelector(ds[i]);
+          if (e) { var r = e.getBoundingClientRect(); if (r.width > 50) return r; }
+        }
+        return null;
+      }
+      function trung(x, y){
+        var pl = document.querySelector('.html5-video-player');
+        if (pl && pl.classList.contains('ytp-autohide')) return false;
+        var r = thanh();
+        if (!r) return false;
+        return x >= r.left - 16 && x <= r.right + 16 && y >= r.top - 28 && y <= r.bottom + 28;
       }
       function toi(x){
-        var v = document.querySelector('video'), b = thanh();
-        if (!v || !b || !isFinite(v.duration) || v.duration <= 0) return;
-        var r = b.getBoundingClientRect();
-        if (r.width <= 0) return;
+        var v = document.querySelector('video'), r = thanh();
+        if (!v || !r || !isFinite(v.duration) || v.duration <= 0) return;
         var f = Math.max(0, Math.min(1, (x - r.left) / r.width));
         try { v.currentTime = f * v.duration; } catch(e) {}
         phat(v);
       }
       document.addEventListener('touchstart', function(e){
-        var t = e.target;
-        if (!t || !t.closest || !t.closest(chon)) return;
-        keo = true; lastSeek = Date.now();
-        toi(e.touches[0].clientX);
+        var p = e.touches[0], t = e.target;
+        var dung = (t && t.closest && t.closest(chon)) || trung(p.clientX, p.clientY);
+        if (!dung) return;
+        keo = true; lastSeek = Date.now(); lastX = p.clientX;
+        toi(lastX);
       }, true);
       document.addEventListener('touchmove', function(e){
         if (!keo) return;
+        lastX = e.touches[0].clientX;
         var n = Date.now();
         if (n - lastSeek < 100) return;
         lastSeek = n;
-        toi(e.touches[0].clientX);
+        toi(lastX);
       }, true);
       function xong(){
         if (!keo) return;
         keo = false;
-        setTimeout(function(){ phat(document.querySelector('video')); }, 200);
+        var x = lastX;
+        setTimeout(function(){ toi(x); }, 120);
+        setTimeout(function(){ toi(x); }, 400);
       }
       document.addEventListener('touchend', xong, true);
       document.addEventListener('touchcancel', xong, true);
