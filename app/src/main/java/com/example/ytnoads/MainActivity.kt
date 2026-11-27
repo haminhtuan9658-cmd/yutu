@@ -316,25 +316,31 @@ class MainActivity : Activity() {
     (function(){
       if (window.__ytKeo) return; window.__ytKeo = 1;
       var keo = false, lastSeek = 0, lastX = 0;
-      var chon = '.ytp-progress-bar-container,.ytp-progress-bar,.ytp-scrubber-container,' +
-        '.ytp-scrubber-button,.ytp-play-progress,.ytp-load-progress,.ytp-hover-progress,[role=slider]';
+      var chon = '[role=slider],[class*="rogressBar"],[class*="progress-bar"],[class*="crubber"]';
       function phat(v){
         if (v && v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
       }
-      function thanh(){
-        var ds = ['.ytp-progress-bar', '.ytp-progress-bar-container'];
-        for (var i = 0; i < ds.length; i++) {
-          var e = document.querySelector(ds[i]);
-          if (e) { var r = e.getBoundingClientRect(); if (r.width > 50) return r; }
+      function hien(e){
+        for (var n = e, i = 0; n && i < 10; n = n.parentElement, i++) {
+          var s = getComputedStyle(n);
+          if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.1) return false;
         }
-        return null;
+        return true;
+      }
+      function thanh(){
+        var ds = document.querySelectorAll(chon);
+        var tot = null, th = 1e9;
+        for (var i = 0; i < ds.length; i++) {
+          var r = ds[i].getBoundingClientRect();
+          if (r.width < 0.4 * window.innerWidth || r.height < 1 || r.height > 0.35 * window.innerHeight) continue;
+          if (r.height < th && hien(ds[i])) { th = r.height; tot = r; }
+        }
+        return tot;
       }
       function trung(x, y){
-        var pl = document.querySelector('.html5-video-player');
-        if (pl && pl.classList.contains('ytp-autohide')) return false;
         var r = thanh();
         if (!r) return false;
-        return x >= r.left - 16 && x <= r.right + 16 && y >= r.top - 28 && y <= r.bottom + 28;
+        return x >= r.left - 16 && x <= r.right + 16 && y >= r.top - 12 && y <= r.bottom + 12;
       }
       function toi(x){
         var v = document.querySelector('video'), r = thanh();
@@ -693,9 +699,13 @@ class MainActivity : Activity() {
         val nenPhat = PlayService.hien?.phat == true
         super.onPause()
         CookieManager.getInstance().flush()
+        // Đang xem toàn màn hình mà tắt nguồn / thoát ra màn hình chính: thoát toàn màn hình để video chạy tiếp ở nền
+        if (nenPhat && fs.visibility == View.VISIBLE) {
+            chrome.onHideCustomView()
+        }
         if (nenPhat) {
             val js = "var v=document.querySelector('video');if(v&&v.paused&&!v.ended)v.play();"
-            for (d in longArrayOf(300, 1000, 2500, 5000)) {
+            for (d in longArrayOf(200, 600, 1200, 2500, 5000, 9000)) {
                 pl.postDelayed({ pl.evaluateJavascript(js, null) }, d)
             }
         }
