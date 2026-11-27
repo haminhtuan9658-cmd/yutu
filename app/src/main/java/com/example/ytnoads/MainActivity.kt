@@ -311,6 +311,51 @@ class MainActivity : Activity() {
     })();
     """.trimIndent()
 
+    // Nhấn và kéo trên thanh thời gian: phát hình và tiếng ngay tại điểm đang kéo
+    private val jsKeo = """
+    (function(){
+      if (window.__ytKeo) return; window.__ytKeo = 1;
+      var keo = false, lastSeek = 0;
+      var chon = '.ytp-progress-bar-container,.ytp-progress-bar,.ytp-scrubber-container,' +
+        '.ytp-scrubber-button,.ytp-play-progress,.ytp-load-progress,.ytp-hover-progress,[role=slider]';
+      function phat(v){
+        if (v && v.paused && !v.ended) { var p = v.play(); if (p && p.catch) p.catch(function(){}); }
+      }
+      function thanh(){
+        return document.querySelector('.ytp-progress-bar') || document.querySelector('.ytp-progress-bar-container');
+      }
+      function toi(x){
+        var v = document.querySelector('video'), b = thanh();
+        if (!v || !b || !isFinite(v.duration) || v.duration <= 0) return;
+        var r = b.getBoundingClientRect();
+        if (r.width <= 0) return;
+        var f = Math.max(0, Math.min(1, (x - r.left) / r.width));
+        try { v.currentTime = f * v.duration; } catch(e) {}
+        phat(v);
+      }
+      document.addEventListener('touchstart', function(e){
+        var t = e.target;
+        if (!t || !t.closest || !t.closest(chon)) return;
+        keo = true; lastSeek = Date.now();
+        toi(e.touches[0].clientX);
+      }, true);
+      document.addEventListener('touchmove', function(e){
+        if (!keo) return;
+        var n = Date.now();
+        if (n - lastSeek < 100) return;
+        lastSeek = n;
+        toi(e.touches[0].clientX);
+      }, true);
+      function xong(){
+        if (!keo) return;
+        keo = false;
+        setTimeout(function(){ phat(document.querySelector('video')); }, 200);
+      }
+      document.addEventListener('touchend', xong, true);
+      document.addEventListener('touchcancel', xong, true);
+    })();
+    """.trimIndent()
+
     private val chrome = object : WebChromeClient() {
         override fun onShowCustomView(view: View, cb: CustomViewCallback) {
             // Chỉ nhớ hướng cũ ở lần vào toàn màn hình đầu tiên
@@ -359,6 +404,7 @@ class MainActivity : Activity() {
                 view.evaluateJavascript(jsTuPhat, null)
                 view.evaluateJavascript(jsBao, null)
                 view.evaluateJavascript(jsLogo, null)
+                view.evaluateJavascript(jsKeo, null)
             } else {
                 view.evaluateJavascript(jsLink, null)
                 keo.isRefreshing = false
